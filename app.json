@@ -11,6 +11,9 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "updates": {
+      "url": "https://u.expo.dev/31597049-5c00-47f5-a6b5-6aaaa4420127"
+    },
     "android": {
       "package": "com.selyanykm.streeeetch",
       "adaptiveIcon": {
@@ -31,6 +34,11 @@
           "enableBackgroundPlayback": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "31597049-5c00-47f5-a6b5-6aaaa4420127"
+      }
+    }
   }
 }
