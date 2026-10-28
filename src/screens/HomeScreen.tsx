@@ -9,7 +9,7 @@ import { ChoiceScreen } from './ChoiceScreen';
 
 // Petit texte en bas de l'écran qui dit quelle version tourne : sert à vérifier
 // qu'une mise à jour envoyée depuis GitHub est bien arrivée sur le téléphone.
-const VERSION_LABEL = `v1.0.0 · étape 5 · ${Updates.updateId ? `maj ${Updates.updateId.slice(0, 8)}` : 'version de base'}`;
+const VERSION_LABEL = `v1.0.0 · étape 6 · ${Updates.updateId ? `maj ${Updates.updateId.slice(0, 8)}` : 'version de base'}`;
 
 // Vérifié une fois au chargement : seed.ts ne change pas pendant que l'app tourne.
 const SEED_ERRORS = findSeedErrors();
@@ -19,9 +19,10 @@ const SESSION_TYPES: SessionType[] = ['push', 'pull', 'legs'];
 interface HomeScreenProps {
   onSelectSessionType: (type: SessionType) => void;
   onOpenHistory: () => void;
+  onOpenTests: () => void;
 }
 
-export function HomeScreen({ onSelectSessionType, onOpenHistory }: HomeScreenProps) {
+export function HomeScreen({ onSelectSessionType, onOpenHistory, onOpenTests }: HomeScreenProps) {
   return (
     <ChoiceScreen
       title="Streeeetch"
@@ -38,9 +39,14 @@ export function HomeScreen({ onSelectSessionType, onOpenHistory }: HomeScreenPro
               ))}
             </View>
           )}
-          <TouchableOpacity style={styles.link} onPress={onOpenHistory} hitSlop={12}>
-            <Text style={styles.linkText}>Historique</Text>
-          </TouchableOpacity>
+          <View style={styles.links}>
+            <TouchableOpacity style={styles.link} onPress={onOpenHistory} hitSlop={12}>
+              <Text style={styles.linkText}>Historique</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.link} onPress={onOpenTests} hitSlop={12}>
+              <Text style={styles.linkText}>Tests</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.version}>{VERSION_LABEL}</Text>
         </View>
       }
@@ -68,8 +74,12 @@ const styles = StyleSheet.create({
     color: THEME.colors.textPrimary,
     fontSize: THEME.fontSize.small,
   },
+  links: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: THEME.spacing.m,
+  },
   link: {
-    alignSelf: 'center',
     paddingVertical: THEME.spacing.s,
     paddingHorizontal: THEME.spacing.l,
     borderRadius: THEME.radius,

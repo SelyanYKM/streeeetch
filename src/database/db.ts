@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
-import { RoutineMoment, SessionRecord, SessionStatus, SessionType } from '../types';
+import { FlexibilityResult, RoutineMoment, SessionRecord, SessionStatus, SessionType } from '../types';
 
-// Base locale du téléphone : historique des séances (et, à l'étape 6, résultats des tests).
+// Base locale du téléphone : historique des séances et résultats des tests de souplesse.
 // Les exercices et routines, eux, restent dans seed.ts.
 
 let db: SQLite.SQLiteDatabase | null = null;
@@ -16,6 +16,12 @@ export function initDatabase(): void {
       moment TEXT NOT NULL,
       duration_sec INTEGER NOT NULL,
       status TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS flexibility_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      test_id TEXT NOT NULL,
+      measured_at TEXT NOT NULL,
+      value REAL NOT NULL
     );
   `);
 }
@@ -51,4 +57,23 @@ export function getSessions(): SessionRecord[] {
     durationSec: r.duration_sec,
     status: r.status,
   }));
+}
+
+export function saveFlexibilityResult(testId: string, value: number, measuredAt: string): void {
+  if (!db) throw new Error('Base non ouverte');
+  db.runSync('INSERT INTO flexibility_results (test_id, measured_at, value) VALUES (?, ?, ?);', testId, measuredAt, value);
+}
+
+export function deleteFlexibilityResult(id: number): void {
+  db?.runSync('DELETE FROM flexibility_results WHERE id = ?;', id);
+}
+
+/** Résultats d'un test, le plus récent en haut. */
+export function getFlexibilityResults(testId: string): FlexibilityResult[] {
+  if (!db) return [];
+  const rows = db.getAllSync<{ id: number; test_id: string; measured_at: string; value: number }>(
+    'SELECT * FROM flexibility_results WHERE test_id = ? ORDER BY measured_at DESC, id DESC;',
+    testId
+  );
+  return rows.map((r) => ({ id: r.id, testId: r.test_id, measuredAt: r.measured_at, value: r.value }));
 }

@@ -74,3 +74,11 @@ export interface SessionRecord {
   durationSec: number; // durée réellement faite (sans les pauses ni les exercices passés)
   status: SessionStatus;
 }
+
+// Un résultat saisi pour un test de souplesse (rattaché au test par son id de seed.ts).
+export interface FlexibilityResult {
+  id: number;
+  testId: string;
+  measuredAt: string; // date de la mesure, format ISO
+  value: number;
+}

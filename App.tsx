@@ -5,6 +5,7 @@ import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LENGTH_LABELS, MOMENT_LABELS, SESSION_LABELS } from './src/constants/labels';
 import { initDatabase, saveSession } from './src/database/db';
+import { FLEXIBILITY_TESTS } from './src/database/seed';
 import { routineMoment, sessionDurationSec } from './src/engine/session';
 import { ChoiceScreen } from './src/screens/ChoiceScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
@@ -12,6 +13,8 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { PlayerScreen } from './src/screens/PlayerScreen';
 import { PreviewScreen } from './src/screens/PreviewScreen';
 import { SummaryScreen } from './src/screens/SummaryScreen';
+import { TestDetailScreen } from './src/screens/TestDetailScreen';
+import { TestsScreen } from './src/screens/TestsScreen';
 import { THEME } from './src/theme';
 import { Moment, PostLength, SessionStatus, SessionType } from './src/types';
 import { configureAppAudio, preloadSignalSounds } from './src/utils/audio';
@@ -19,8 +22,18 @@ import { formatDuration } from './src/utils/format';
 
 // Navigation par état : l'écran courant + les choix déjà faits, sans librairie.
 // Parcours : accueil (push/pull/legs) → moment (pré/post) → durée (post seulement) → aperçu
-// → lecteur → fin de séance. L'historique s'ouvre depuis l'accueil ou la fin de séance.
-type ScreenState = 'HOME' | 'MOMENT' | 'LENGTH' | 'PREVIEW' | 'PLAYER' | 'SUMMARY' | 'HISTORY';
+// → lecteur → fin de séance. L'historique s'ouvre depuis l'accueil ou la fin de séance,
+// les tests de souplesse depuis l'accueil (liste → fiche d'un test).
+type ScreenState =
+  | 'HOME'
+  | 'MOMENT'
+  | 'LENGTH'
+  | 'PREVIEW'
+  | 'PLAYER'
+  | 'SUMMARY'
+  | 'HISTORY'
+  | 'TESTS'
+  | 'TEST_DETAIL';
 
 // En dessous, une séance arrêtée est un faux départ : elle n'est pas enregistrée.
 const MIN_RECORDED_STOP_SEC = 30;
@@ -38,6 +51,7 @@ export default function App() {
   const [moment, setMoment] = useState<Moment>('pre');
   const [length, setLength] = useState<PostLength | null>(null);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
 
   useEffect(() => {
     async function setup() {
@@ -79,7 +93,8 @@ export default function App() {
   // Écran précédent du parcours. null sur l'accueil (le retour quitte l'app) et sur le
   // lecteur (il gère lui-même le retour, avec la confirmation d'arrêt).
   const previousScreen: ScreenState | null =
-    currentScreen === 'SUMMARY' || currentScreen === 'HISTORY' ? 'HOME'
+    currentScreen === 'SUMMARY' || currentScreen === 'HISTORY' || currentScreen === 'TESTS' ? 'HOME'
+    : currentScreen === 'TEST_DETAIL' ? 'TESTS'
     : currentScreen === 'PREVIEW' ? (moment === 'post' ? 'LENGTH' : 'MOMENT')
     : currentScreen === 'LENGTH' ? 'MOMENT'
     : currentScreen === 'MOMENT' ? 'HOME'
@@ -98,6 +113,8 @@ export default function App() {
     });
     return () => subscription.remove();
   }, [previousScreen]);
+
+  const selectedTest = FLEXIBILITY_TESTS.find((t) => t.id === selectedTestId);
 
   const sessionTitle = [SESSION_LABELS[sessionType], MOMENT_LABELS[moment], length ? LENGTH_LABELS[length] : null]
     .filter(Boolean)
@@ -141,6 +158,7 @@ export default function App() {
               setCurrentScreen('MOMENT');
             }}
             onOpenHistory={() => setCurrentScreen('HISTORY')}
+            onOpenTests={() => setCurrentScreen('TESTS')}
           />
         )}
 
@@ -205,6 +223,20 @@ export default function App() {
         )}
 
         {currentScreen === 'HISTORY' && <HistoryScreen onBack={() => setCurrentScreen('HOME')} />}
+
+        {currentScreen === 'TESTS' && (
+          <TestsScreen
+            onSelectTest={(testId) => {
+              setSelectedTestId(testId);
+              setCurrentScreen('TEST_DETAIL');
+            }}
+            onBack={() => setCurrentScreen('HOME')}
+          />
+        )}
+
+        {currentScreen === 'TEST_DETAIL' && selectedTest && (
+          <TestDetailScreen test={selectedTest} onBack={() => setCurrentScreen('TESTS')} />
+        )}
       </View>
     </SafeAreaProvider>
   );
