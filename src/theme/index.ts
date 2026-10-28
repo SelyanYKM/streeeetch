@@ -19,6 +19,7 @@ export const THEME = {
     small: 16,
     body: 20,
     button: 30,
+    heading: 32,
     title: 44,
     timer: 120,
   },

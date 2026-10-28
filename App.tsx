@@ -1,17 +1,27 @@
 import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { LENGTH_LABELS, MOMENT_LABELS, SESSION_LABELS } from './src/constants/labels';
+import { sessionDurationSec } from './src/engine/session';
+import { ChoiceScreen } from './src/screens/ChoiceScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { PreviewScreen } from './src/screens/PreviewScreen';
 import { THEME } from './src/theme';
+import { Moment, PostLength, SessionType } from './src/types';
+import { formatDuration } from './src/utils/format';
 
-// Navigation par état : un seul écran pour l'instant, les autres arrivent aux étapes suivantes.
-type ScreenState = 'HOME';
+// Navigation par état : l'écran courant + les choix déjà faits, sans librairie.
+// Parcours : accueil (push/pull/legs) → moment (pré/post) → durée (post seulement) → aperçu.
+type ScreenState = 'HOME' | 'MOMENT' | 'LENGTH' | 'PREVIEW';
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
-  const [currentScreen] = useState<ScreenState>('HOME');
+  const [currentScreen, setCurrentScreen] = useState<ScreenState>('HOME');
+  const [sessionType, setSessionType] = useState<SessionType>('push');
+  const [moment, setMoment] = useState<Moment>('pre');
+  const [length, setLength] = useState<PostLength | null>(null);
 
   useEffect(() => {
     async function setup() {
@@ -42,6 +52,27 @@ export default function App() {
     setup();
   }, []);
 
+  // Écran précédent du parcours (null sur l'accueil : le retour quitte alors l'app).
+  const previousScreen: ScreenState | null =
+    currentScreen === 'PREVIEW' ? (moment === 'post' ? 'LENGTH' : 'MOMENT')
+    : currentScreen === 'LENGTH' ? 'MOMENT'
+    : currentScreen === 'MOMENT' ? 'HOME'
+    : null;
+
+  const goBack = () => {
+    if (previousScreen) setCurrentScreen(previousScreen);
+  };
+
+  // Bouton retour physique / geste retour Android : remonte d'un écran dans le parcours.
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!previousScreen) return false;
+      setCurrentScreen(previousScreen);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [previousScreen]);
+
   if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
@@ -55,7 +86,61 @@ export default function App() {
     <SafeAreaProvider>
       <View style={styles.appContainer}>
         <StatusBar style={THEME.statusBarStyle} />
-        {currentScreen === 'HOME' && <HomeScreen />}
+
+        {currentScreen === 'HOME' && (
+          <HomeScreen
+            onSelectSessionType={(type) => {
+              setSessionType(type);
+              setCurrentScreen('MOMENT');
+            }}
+          />
+        )}
+
+        {currentScreen === 'MOMENT' && (
+          <ChoiceScreen<Moment>
+            title={SESSION_LABELS[sessionType]}
+            subtitle="Avant ou après la séance ?"
+            options={[
+              { key: 'pre', label: MOMENT_LABELS.pre, sublabel: `Mobilité · ${formatDuration(sessionDurationSec(sessionType, 'pre', null))}` },
+              { key: 'post', label: MOMENT_LABELS.post, sublabel: 'Étirements · courte ou longue' },
+            ]}
+            onSelect={(m) => {
+              setMoment(m);
+              setLength(null);
+              setCurrentScreen(m === 'post' ? 'LENGTH' : 'PREVIEW');
+            }}
+            onBack={goBack}
+          />
+        )}
+
+        {currentScreen === 'LENGTH' && (
+          <ChoiceScreen<PostLength>
+            title={`${SESSION_LABELS[sessionType]} · ${MOMENT_LABELS.post}`}
+            subtitle="Quelle durée ?"
+            options={(['courte', 'longue'] as const).map((l) => ({
+              key: l,
+              label: LENGTH_LABELS[l],
+              sublabel: formatDuration(sessionDurationSec(sessionType, 'post', l)),
+            }))}
+            onSelect={(l) => {
+              setLength(l);
+              setCurrentScreen('PREVIEW');
+            }}
+            onBack={goBack}
+          />
+        )}
+
+        {currentScreen === 'PREVIEW' && (
+          <PreviewScreen
+            title={[SESSION_LABELS[sessionType], MOMENT_LABELS[moment], length ? LENGTH_LABELS[length] : null]
+              .filter(Boolean)
+              .join(' · ')}
+            sessionType={sessionType}
+            moment={moment}
+            length={length}
+            onBack={goBack}
+          />
+        )}
       </View>
     </SafeAreaProvider>
   );
