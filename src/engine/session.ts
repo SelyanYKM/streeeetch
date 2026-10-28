@@ -3,7 +3,7 @@
 // enchaîner les étapes : les deux restent donc toujours d'accord.
 
 import { EXERCISES, ROUTINES } from '../database/seed';
-import { Exercise, Moment, PostLength, RoutineItem, SessionType } from '../types';
+import { Exercise, Moment, PostLength, RoutineMoment, SessionType } from '../types';
 
 export const TRANSITION_SEC = 5;
 
@@ -24,7 +24,6 @@ export interface PlannedExercise {
   exercise: Exercise;
   sets: number;
   holdSec: number;
-  isComplement: boolean;
 }
 
 const EXERCISES_BY_ID = new Map(EXERCISES.map((e) => [e.id, e]));
@@ -38,7 +37,7 @@ export function findSeedErrors(): string[] {
     seenIds.add(e.id);
   }
   const sessionTypes: SessionType[] = ['push', 'pull', 'legs'];
-  const moments: Moment[] = ['pre', 'post'];
+  const moments: RoutineMoment[] = ['pre', 'post-courte', 'post-longue'];
   for (const sessionType of sessionTypes) {
     for (const moment of moments) {
       const count = ROUTINES.filter((r) => r.sessionType === sessionType && r.moment === moment).length;
@@ -46,11 +45,11 @@ export function findSeedErrors(): string[] {
     }
   }
   for (const r of ROUTINES) {
-    for (const item of [...r.exercises, ...r.complement]) {
+    for (const item of r.exercises) {
       if (!EXERCISES_BY_ID.has(item.exerciseId)) {
         errors.push(`Routine ${r.sessionType} ${r.moment} : exercice inconnu « ${item.exerciseId} »`);
       }
-      if (!(item.sets >= 1) || !(item.holdSec >= 1)) {
+      if (!(item.sets >= 1) || (item.holdSec !== undefined && !(item.holdSec >= 1))) {
         errors.push(`Routine ${r.sessionType} ${r.moment} : séries et durée doivent valoir au moins 1 (« ${item.exerciseId} »)`);
       }
     }
@@ -58,19 +57,21 @@ export function findSeedErrors(): string[] {
   return errors;
 }
 
-/** Exercices de la séance choisie, dans l'ordre (complément inclus pour le post long). */
+/** Routine correspondant au choix fait à l'écran (pré, ou post courte / longue). */
+function routineMoment(moment: Moment, length: PostLength | null): RoutineMoment {
+  if (moment === 'pre') return 'pre';
+  return length === 'longue' ? 'post-longue' : 'post-courte';
+}
+
+/** Exercices de la séance choisie, dans l'ordre, avec leur durée de tenue effective. */
 export function planSession(sessionType: SessionType, moment: Moment, length: PostLength | null): PlannedExercise[] {
-  const routine = ROUTINES.find((r) => r.sessionType === sessionType && r.moment === moment);
+  const wanted = routineMoment(moment, length);
+  const routine = ROUTINES.find((r) => r.sessionType === sessionType && r.moment === wanted);
   if (!routine) return [];
-  const toPlanned = (isComplement: boolean) => (item: RoutineItem) => {
+  return routine.exercises.flatMap((item) => {
     const exercise = EXERCISES_BY_ID.get(item.exerciseId);
-    return exercise ? [{ exercise, sets: item.sets, holdSec: item.holdSec, isComplement }] : [];
-  };
-  const withComplement = moment === 'post' && length === 'longue';
-  return [
-    ...routine.exercises.flatMap(toPlanned(false)),
-    ...(withComplement ? routine.complement.flatMap(toPlanned(true)) : []),
-  ];
+    return exercise ? [{ exercise, sets: item.sets, holdSec: item.holdSec ?? exercise.defaultHoldSec }] : [];
+  });
 }
 
 /**

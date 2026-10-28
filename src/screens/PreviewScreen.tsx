@@ -32,20 +32,14 @@ export function PreviewScreen({ title, sessionType, moment, length, onBack }: Pr
       </Text>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {plan.map((item, index) => {
-          const startsComplement = item.isComplement && !plan[index - 1]?.isComplement;
-          return (
-            <View key={`${item.exercise.id}-${index}`}>
-              {startsComplement && <Text style={styles.sectionLabel}>Complément version longue</Text>}
-              <View style={styles.row}>
-                <Text style={styles.exerciseName}>{item.exercise.name}</Text>
-                <Text style={styles.exerciseDetail}>
-                  {item.sets} × {item.holdSec} s{item.exercise.unilateral ? ' · droite puis gauche' : ''}
-                </Text>
-              </View>
-            </View>
-          );
-        })}
+        {plan.map((item, index) => (
+          <View key={`${item.exercise.id}-${index}`} style={styles.row}>
+            <Text style={styles.exerciseName}>{item.exercise.name}</Text>
+            <Text style={styles.exerciseDetail}>
+              {item.sets} × {item.holdSec} s{item.exercise.unilateral ? ' · droite puis gauche' : ''}
+            </Text>
+          </View>
+        ))}
       </ScrollView>
 
       {/* Inactif à l'étape 2 : le lecteur de séance arrive à l'étape 3. */}
@@ -84,15 +78,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     gap: THEME.spacing.s,
-  },
-  sectionLabel: {
-    color: THEME.colors.accent,
-    fontSize: THEME.fontSize.small,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginTop: THEME.spacing.m,
-    marginBottom: THEME.spacing.s,
   },
   row: {
     backgroundColor: THEME.colors.surface,
