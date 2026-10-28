@@ -7,14 +7,15 @@ import { LENGTH_LABELS, MOMENT_LABELS, SESSION_LABELS } from './src/constants/la
 import { sessionDurationSec } from './src/engine/session';
 import { ChoiceScreen } from './src/screens/ChoiceScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { PlayerScreen } from './src/screens/PlayerScreen';
 import { PreviewScreen } from './src/screens/PreviewScreen';
 import { THEME } from './src/theme';
 import { Moment, PostLength, SessionType } from './src/types';
 import { formatDuration } from './src/utils/format';
 
 // Navigation par état : l'écran courant + les choix déjà faits, sans librairie.
-// Parcours : accueil (push/pull/legs) → moment (pré/post) → durée (post seulement) → aperçu.
-type ScreenState = 'HOME' | 'MOMENT' | 'LENGTH' | 'PREVIEW';
+// Parcours : accueil (push/pull/legs) → moment (pré/post) → durée (post seulement) → aperçu → lecteur.
+type ScreenState = 'HOME' | 'MOMENT' | 'LENGTH' | 'PREVIEW' | 'PLAYER';
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
@@ -53,8 +54,10 @@ export default function App() {
   }, []);
 
   // Écran précédent du parcours (null sur l'accueil : le retour quitte alors l'app).
+  // Lecteur : retour provisoire à l'aperçu, sans confirmation (ajoutée à l'étape 4 avec « Arrêter »).
   const previousScreen: ScreenState | null =
-    currentScreen === 'PREVIEW' ? (moment === 'post' ? 'LENGTH' : 'MOMENT')
+    currentScreen === 'PLAYER' ? 'PREVIEW'
+    : currentScreen === 'PREVIEW' ? (moment === 'post' ? 'LENGTH' : 'MOMENT')
     : currentScreen === 'LENGTH' ? 'MOMENT'
     : currentScreen === 'MOMENT' ? 'HOME'
     : null;
@@ -72,6 +75,10 @@ export default function App() {
     });
     return () => subscription.remove();
   }, [previousScreen]);
+
+  const sessionTitle = [SESSION_LABELS[sessionType], MOMENT_LABELS[moment], length ? LENGTH_LABELS[length] : null]
+    .filter(Boolean)
+    .join(' · ');
 
   if (!isReady) {
     return (
@@ -132,13 +139,22 @@ export default function App() {
 
         {currentScreen === 'PREVIEW' && (
           <PreviewScreen
-            title={[SESSION_LABELS[sessionType], MOMENT_LABELS[moment], length ? LENGTH_LABELS[length] : null]
-              .filter(Boolean)
-              .join(' · ')}
+            title={sessionTitle}
             sessionType={sessionType}
             moment={moment}
             length={length}
             onBack={goBack}
+            onStart={() => setCurrentScreen('PLAYER')}
+          />
+        )}
+
+        {currentScreen === 'PLAYER' && (
+          <PlayerScreen
+            title={sessionTitle}
+            sessionType={sessionType}
+            moment={moment}
+            length={length}
+            onExit={() => setCurrentScreen('HOME')}
           />
         )}
       </View>

@@ -14,10 +14,11 @@ interface PreviewScreenProps {
   moment: Moment;
   length: PostLength | null;
   onBack: () => void;
+  onStart: () => void;
 }
 
 /** Aperçu de la séance : exercices, séries, durées et durée totale. */
-export function PreviewScreen({ title, sessionType, moment, length, onBack }: PreviewScreenProps) {
+export function PreviewScreen({ title, sessionType, moment, length, onBack, onStart }: PreviewScreenProps) {
   const insets = useSafeAreaInsets();
   const plan = useMemo(() => planSession(sessionType, moment, length), [sessionType, moment, length]);
   const totalSec = useMemo(() => totalDurationSec(buildSteps(plan)), [plan]);
@@ -42,8 +43,7 @@ export function PreviewScreen({ title, sessionType, moment, length, onBack }: Pr
         ))}
       </ScrollView>
 
-      {/* Inactif à l'étape 2 : le lecteur de séance arrive à l'étape 3. */}
-      <BigButton label="COMMENCER" sublabel="disponible à l'étape 3" primary disabled />
+      <BigButton label="COMMENCER" primary onPress={onStart} disabled={plan.length === 0} />
     </View>
   );
 }

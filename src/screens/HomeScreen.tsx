@@ -9,7 +9,7 @@ import { ChoiceScreen } from './ChoiceScreen';
 
 // Petit texte en bas de l'écran qui dit quelle version tourne : sert à vérifier
 // qu'une mise à jour envoyée depuis GitHub est bien arrivée sur le téléphone.
-const VERSION_LABEL = `v1.0.0 · étape 2 · ${Updates.updateId ? `maj ${Updates.updateId.slice(0, 8)}` : 'version de base'}`;
+const VERSION_LABEL = `v1.0.0 · étape 3 · ${Updates.updateId ? `maj ${Updates.updateId.slice(0, 8)}` : 'version de base'}`;
 
 // Vérifié une fois au chargement : seed.ts ne change pas pendant que l'app tourne.
 const SEED_ERRORS = findSeedErrors();

@@ -14,6 +14,7 @@ export interface Step {
   kind: 'transition' | 'hold';
   durationSec: number;
   exercise: Exercise;
+  exerciseIndex: number; // position de l'exercice dans la routine (0, 1, 2…)
   set: number; // 1, 2, 3…
   totalSets: number;
   side: Side; // null pour un exercice non unilatéral
@@ -80,16 +81,16 @@ export function planSession(sessionType: SessionType, moment: Moment, length: Po
  */
 export function buildSteps(plan: PlannedExercise[]): Step[] {
   const steps: Step[] = [];
-  for (const { exercise, sets, holdSec } of plan) {
+  plan.forEach(({ exercise, sets, holdSec }, exerciseIndex) => {
     const sides: Side[] = exercise.unilateral ? ['droite', 'gauche'] : [null];
     for (let set = 1; set <= sets; set++) {
       for (const side of sides) {
-        const base = { exercise, set, totalSets: sets, side };
+        const base = { exercise, exerciseIndex, set, totalSets: sets, side };
         steps.push({ ...base, kind: 'transition', durationSec: TRANSITION_SEC });
         steps.push({ ...base, kind: 'hold', durationSec: holdSec });
       }
     }
-  }
+  });
   return steps;
 }
 
