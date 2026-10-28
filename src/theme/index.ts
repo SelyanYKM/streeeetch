@@ -33,5 +33,7 @@ export const THEME = {
   radius: 16,
   // Hauteur minimale d'un bouton principal : facile à toucher du bout du pied ou du doigt.
   buttonHeight: 96,
+  // Hauteur des boutons Pause / Passer / Arrêter du lecteur.
+  controlHeight: 80,
   statusBarStyle: 'light' as const,
 };

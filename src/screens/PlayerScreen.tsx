@@ -1,14 +1,25 @@
 import { useKeepAwake } from 'expo-keep-awake';
-import React, { useEffect, useMemo, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, BackHandler, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BigButton } from '../components/BigButton';
 import { getExerciseImage } from '../constants/exerciseImages';
-import { advanceTo, isFinished, remainingSec, startPosition } from '../engine/player';
+import {
+  advanceTo,
+  isFinished,
+  isPaused,
+  pause,
+  remainingSec,
+  resume,
+  skipExercise,
+  startPosition,
+} from '../engine/player';
 import { buildSteps, planSession, Side, Step, totalDurationSec } from '../engine/session';
 import { THEME } from '../theme';
 import { Moment, PostLength, SessionType } from '../types';
+import { playEndSound, playStartSound } from '../utils/audio';
 import { formatDuration } from '../utils/format';
+import { triggerEndHaptic, triggerLightHaptic, triggerStartHaptic } from '../utils/haptics';
 
 interface PlayerScreenProps {
   title: string;
@@ -53,6 +64,71 @@ export function PlayerScreen({ title, sessionType, moment, length, onExit }: Pla
     return () => clearInterval(interval);
   }, [steps]);
 
+  // Son + vibration au début et à la fin de chaque tenue (détectés au changement d'étape,
+  // que ce soit la fin naturelle du minuteur ou un appui sur « Passer »).
+  const lastStepIndexRef = useRef(position.index);
+  useEffect(() => {
+    if (position.index === lastStepIndexRef.current) return;
+    const previous = steps[lastStepIndexRef.current];
+    lastStepIndexRef.current = position.index;
+    const current = steps[position.index];
+    if (current?.kind === 'hold') {
+      playStartSound();
+      triggerStartHaptic();
+    } else if (previous?.kind === 'hold') {
+      playEndSound();
+      triggerEndHaptic();
+    }
+  }, [position.index, steps]);
+
+  // Copie toujours à jour de la position, lisible depuis les callbacks (Alert, bouton retour).
+  const positionRef = useRef(position);
+  positionRef.current = position;
+
+  const togglePause = () => {
+    triggerLightHaptic();
+    setPosition((p) => (isPaused(p) ? resume(p, Date.now()) : pause(p, Date.now())));
+  };
+
+  const handleSkip = () => {
+    triggerLightHaptic();
+    setPosition((p) => skipExercise(steps, p, Date.now()));
+  };
+
+  // « Arrêter » : met en pause le temps de la question, pour qu'un appui accidentel
+  // (téléphone au sol) ne fasse rien perdre. « Continuer » relance si ça tournait avant.
+  const requestStop = () => {
+    const wasPaused = isPaused(positionRef.current);
+    setPosition((p) => pause(p, Date.now()));
+    const continueSession = () => {
+      if (!wasPaused) setPosition((p) => resume(p, Date.now()));
+    };
+    Alert.alert(
+      'Arrêter la séance ?',
+      'La séance en cours sera interrompue.',
+      [
+        { text: 'Continuer', style: 'cancel', onPress: continueSession },
+        { text: 'Arrêter', style: 'destructive', onPress: onExit },
+      ],
+      { cancelable: true, onDismiss: continueSession }
+    );
+  };
+
+  // Bouton retour du téléphone : même confirmation que « Arrêter » (ou retour à l'accueil si fini).
+  // Passe par une ref pour n'enregistrer l'écouteur qu'une fois, malgré les rafraîchissements.
+  const onBackRef = useRef(() => {});
+  onBackRef.current = () => {
+    if (isFinished(steps, positionRef.current)) onExit();
+    else requestStop();
+  };
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBackRef.current();
+      return true;
+    });
+    return () => subscription.remove();
+  }, []);
+
   if (isFinished(steps, position)) {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top, paddingBottom: insets.bottom + THEME.spacing.m }]}>
@@ -69,6 +145,7 @@ export function PlayerScreen({ title, sessionType, moment, length, onExit }: Pla
   const step = steps[position.index];
   const remaining = remainingSec(position, now);
   const isTransition = step.kind === 'transition';
+  const paused = isPaused(position);
   // Temps restant de toute la séance : fin de l'étape en cours + étapes suivantes.
   const sessionRemaining = remaining + totalDurationSec(steps.slice(position.index + 1));
 
@@ -104,8 +181,9 @@ export function PlayerScreen({ title, sessionType, moment, length, onExit }: Pla
         </View>
       )}
 
+      {paused && <Text style={[styles.pausedLabel, isTransition && styles.transitionText]}>EN PAUSE</Text>}
       <Text
-        style={[styles.timer, isTransition && styles.transitionText]}
+        style={[styles.timer, isTransition && styles.transitionText, paused && styles.timerPaused]}
         adjustsFontSizeToFit
         numberOfLines={1}
       >
@@ -115,7 +193,34 @@ export function PlayerScreen({ title, sessionType, moment, length, onExit }: Pla
       <Text style={[styles.instruction, isTransition && styles.transitionText]} numberOfLines={3}>
         {step.exercise.instruction}
       </Text>
+
+      <View style={styles.controls}>
+        <ControlButton label="ARRÊTER" onPress={requestStop} />
+        <ControlButton label={paused ? 'REPRENDRE' : 'PAUSE'} onPress={togglePause} primary wide />
+        <ControlButton label="PASSER" onPress={handleSkip} />
+      </View>
     </View>
+  );
+}
+
+interface ControlButtonProps {
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+  wide?: boolean;
+}
+
+function ControlButton({ label, onPress, primary, wide }: ControlButtonProps) {
+  return (
+    <TouchableOpacity
+      style={[styles.controlButton, wide && styles.controlButtonWide, primary && styles.controlButtonPrimary]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={[styles.controlText, primary && styles.controlTextPrimary]} adjustsFontSizeToFit numberOfLines={1}>
+        {label}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -200,6 +305,48 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginTop: THEME.spacing.s,
+  },
+  timerPaused: {
+    opacity: 0.4,
+  },
+  pausedLabel: {
+    color: THEME.colors.accent,
+    fontSize: THEME.fontSize.button,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 2,
+  },
+  controls: {
+    flexDirection: 'row',
+    gap: THEME.spacing.s,
+    marginTop: THEME.spacing.m,
+  },
+  controlButton: {
+    flex: 1,
+    height: THEME.controlHeight,
+    borderRadius: THEME.radius,
+    backgroundColor: THEME.colors.surface,
+    borderWidth: 2,
+    borderColor: THEME.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: THEME.spacing.s,
+  },
+  controlButtonWide: {
+    flex: 1.6,
+  },
+  controlButtonPrimary: {
+    backgroundColor: THEME.colors.textPrimary,
+    borderColor: THEME.colors.textPrimary,
+  },
+  controlText: {
+    color: THEME.colors.textPrimary,
+    fontSize: THEME.fontSize.body,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  controlTextPrimary: {
+    color: THEME.colors.bg,
   },
   finishedContent: {
     flex: 1,

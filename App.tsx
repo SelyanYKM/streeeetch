@@ -11,6 +11,7 @@ import { PlayerScreen } from './src/screens/PlayerScreen';
 import { PreviewScreen } from './src/screens/PreviewScreen';
 import { THEME } from './src/theme';
 import { Moment, PostLength, SessionType } from './src/types';
+import { configureAppAudio, preloadSignalSounds } from './src/utils/audio';
 import { formatDuration } from './src/utils/format';
 
 // Navigation par état : l'écran courant + les choix déjà faits, sans librairie.
@@ -46,6 +47,8 @@ export default function App() {
             console.error('Vérification de mise à jour OTA impossible:', updateError);
           }
         }
+        await configureAppAudio();
+        preloadSignalSounds();
       } finally {
         setIsReady(true);
       }
@@ -53,11 +56,10 @@ export default function App() {
     setup();
   }, []);
 
-  // Écran précédent du parcours (null sur l'accueil : le retour quitte alors l'app).
-  // Lecteur : retour provisoire à l'aperçu, sans confirmation (ajoutée à l'étape 4 avec « Arrêter »).
+  // Écran précédent du parcours. null sur l'accueil (le retour quitte l'app) et sur le
+  // lecteur (il gère lui-même le retour, avec la confirmation d'arrêt).
   const previousScreen: ScreenState | null =
-    currentScreen === 'PLAYER' ? 'PREVIEW'
-    : currentScreen === 'PREVIEW' ? (moment === 'post' ? 'LENGTH' : 'MOMENT')
+    currentScreen === 'PREVIEW' ? (moment === 'post' ? 'LENGTH' : 'MOMENT')
     : currentScreen === 'LENGTH' ? 'MOMENT'
     : currentScreen === 'MOMENT' ? 'HOME'
     : null;
