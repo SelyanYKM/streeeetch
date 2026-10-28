@@ -4,19 +4,32 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LENGTH_LABELS, MOMENT_LABELS, SESSION_LABELS } from './src/constants/labels';
-import { sessionDurationSec } from './src/engine/session';
+import { initDatabase, saveSession } from './src/database/db';
+import { routineMoment, sessionDurationSec } from './src/engine/session';
 import { ChoiceScreen } from './src/screens/ChoiceScreen';
+import { HistoryScreen } from './src/screens/HistoryScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { PlayerScreen } from './src/screens/PlayerScreen';
 import { PreviewScreen } from './src/screens/PreviewScreen';
+import { SummaryScreen } from './src/screens/SummaryScreen';
 import { THEME } from './src/theme';
-import { Moment, PostLength, SessionType } from './src/types';
+import { Moment, PostLength, SessionStatus, SessionType } from './src/types';
 import { configureAppAudio, preloadSignalSounds } from './src/utils/audio';
 import { formatDuration } from './src/utils/format';
 
 // Navigation par état : l'écran courant + les choix déjà faits, sans librairie.
-// Parcours : accueil (push/pull/legs) → moment (pré/post) → durée (post seulement) → aperçu → lecteur.
-type ScreenState = 'HOME' | 'MOMENT' | 'LENGTH' | 'PREVIEW' | 'PLAYER';
+// Parcours : accueil (push/pull/legs) → moment (pré/post) → durée (post seulement) → aperçu
+// → lecteur → fin de séance. L'historique s'ouvre depuis l'accueil ou la fin de séance.
+type ScreenState = 'HOME' | 'MOMENT' | 'LENGTH' | 'PREVIEW' | 'PLAYER' | 'SUMMARY' | 'HISTORY';
+
+// En dessous, une séance arrêtée est un faux départ : elle n'est pas enregistrée.
+const MIN_RECORDED_STOP_SEC = 30;
+
+interface SessionSummary {
+  status: SessionStatus;
+  durationSec: number;
+  saved: boolean;
+}
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
@@ -24,6 +37,7 @@ export default function App() {
   const [sessionType, setSessionType] = useState<SessionType>('push');
   const [moment, setMoment] = useState<Moment>('pre');
   const [length, setLength] = useState<PostLength | null>(null);
+  const [summary, setSummary] = useState<SessionSummary | null>(null);
 
   useEffect(() => {
     async function setup() {
@@ -47,6 +61,12 @@ export default function App() {
             console.error('Vérification de mise à jour OTA impossible:', updateError);
           }
         }
+        try {
+          initDatabase();
+        } catch (dbError) {
+          // L'app reste utilisable sans historique plutôt que de bloquer au démarrage.
+          console.error('Ouverture de la base impossible:', dbError);
+        }
         await configureAppAudio();
         preloadSignalSounds();
       } finally {
@@ -59,7 +79,8 @@ export default function App() {
   // Écran précédent du parcours. null sur l'accueil (le retour quitte l'app) et sur le
   // lecteur (il gère lui-même le retour, avec la confirmation d'arrêt).
   const previousScreen: ScreenState | null =
-    currentScreen === 'PREVIEW' ? (moment === 'post' ? 'LENGTH' : 'MOMENT')
+    currentScreen === 'SUMMARY' || currentScreen === 'HISTORY' ? 'HOME'
+    : currentScreen === 'PREVIEW' ? (moment === 'post' ? 'LENGTH' : 'MOMENT')
     : currentScreen === 'LENGTH' ? 'MOMENT'
     : currentScreen === 'MOMENT' ? 'HOME'
     : null;
@@ -82,6 +103,23 @@ export default function App() {
     .filter(Boolean)
     .join(' · ');
 
+  // Fin de séance : enregistre (sauf faux départ arrêté avant 30 s) puis affiche le récapitulatif.
+  const handleSessionEnd = (status: SessionStatus, durationSec: number, startedAt: string) => {
+    if (status === 'arretee' && durationSec < MIN_RECORDED_STOP_SEC) {
+      setCurrentScreen('HOME');
+      return;
+    }
+    let saved = true;
+    try {
+      saveSession({ startedAt, sessionType, moment: routineMoment(moment, length), durationSec, status });
+    } catch (error) {
+      console.error("Enregistrement de la séance impossible:", error);
+      saved = false;
+    }
+    setSummary({ status, durationSec, saved });
+    setCurrentScreen('SUMMARY');
+  };
+
   if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
@@ -102,6 +140,7 @@ export default function App() {
               setSessionType(type);
               setCurrentScreen('MOMENT');
             }}
+            onOpenHistory={() => setCurrentScreen('HISTORY')}
           />
         )}
 
@@ -151,14 +190,21 @@ export default function App() {
         )}
 
         {currentScreen === 'PLAYER' && (
-          <PlayerScreen
+          <PlayerScreen sessionType={sessionType} moment={moment} length={length} onEnd={handleSessionEnd} />
+        )}
+
+        {currentScreen === 'SUMMARY' && summary && (
+          <SummaryScreen
             title={sessionTitle}
-            sessionType={sessionType}
-            moment={moment}
-            length={length}
-            onExit={() => setCurrentScreen('HOME')}
+            status={summary.status}
+            durationSec={summary.durationSec}
+            saved={summary.saved}
+            onHome={() => setCurrentScreen('HOME')}
+            onHistory={() => setCurrentScreen('HISTORY')}
           />
         )}
+
+        {currentScreen === 'HISTORY' && <HistoryScreen onBack={() => setCurrentScreen('HOME')} />}
       </View>
     </SafeAreaProvider>
   );

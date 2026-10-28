@@ -14,6 +14,7 @@ export const THEME = {
     disabled: '#4A4A4A',
     success: '#4CD964',
     danger: '#FF5A5A',
+    stopped: '#FF9F0A',
   },
   fontSize: {
     small: 16,

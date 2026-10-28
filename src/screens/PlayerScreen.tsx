@@ -2,10 +2,10 @@ import { useKeepAwake } from 'expo-keep-awake';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BigButton } from '../components/BigButton';
 import { getExerciseImage } from '../constants/exerciseImages';
 import {
   advanceTo,
+  elapsedSec,
   isFinished,
   isPaused,
   pause,
@@ -16,17 +16,17 @@ import {
 } from '../engine/player';
 import { buildSteps, planSession, Side, Step, totalDurationSec } from '../engine/session';
 import { THEME } from '../theme';
-import { Moment, PostLength, SessionType } from '../types';
+import { Moment, PostLength, SessionStatus, SessionType } from '../types';
 import { playEndSound, playStartSound } from '../utils/audio';
 import { formatDuration } from '../utils/format';
 import { triggerEndHaptic, triggerLightHaptic, triggerStartHaptic } from '../utils/haptics';
 
 interface PlayerScreenProps {
-  title: string;
   sessionType: SessionType;
   moment: Moment;
   length: PostLength | null;
-  onExit: () => void;
+  // Appelé une seule fois : séance finie (« terminee ») ou arrêtée après confirmation.
+  onEnd: (status: SessionStatus, durationSec: number, startedAt: string) => void;
 }
 
 const SIDE_LABELS: Record<Exclude<Side, null>, string> = {
@@ -44,7 +44,7 @@ function setLabel(step: Step): string {
 }
 
 /** Lecteur de séance : enchaîne automatiquement transitions et tenues. */
-export function PlayerScreen({ title, sessionType, moment, length, onExit }: PlayerScreenProps) {
+export function PlayerScreen({ sessionType, moment, length, onEnd }: PlayerScreenProps) {
   // Écran maintenu allumé tant que le lecteur est affiché (téléphone posé au sol).
   useKeepAwake();
   const insets = useSafeAreaInsets();
@@ -53,6 +53,14 @@ export function PlayerScreen({ title, sessionType, moment, length, onExit }: Pla
   const steps = useMemo(() => buildSteps(plan), [plan]);
 
   const [position, setPosition] = useState(() => startPosition(steps, Date.now()));
+  const startedAtRef = useRef(new Date().toISOString());
+  // Garde-fou : la fin (naturelle ou arrêt) n'est signalée qu'une fois.
+  const hasEndedRef = useRef(false);
+  const endSession = (status: SessionStatus, durationSec: number) => {
+    if (hasEndedRef.current) return;
+    hasEndedRef.current = true;
+    onEnd(status, durationSec, startedAtRef.current);
+  };
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -85,6 +93,12 @@ export function PlayerScreen({ title, sessionType, moment, length, onExit }: Pla
   const positionRef = useRef(position);
   positionRef.current = position;
 
+  // Fin naturelle : dernière tenue écoulée (ou dernier exercice passé).
+  const finished = isFinished(steps, position);
+  useEffect(() => {
+    if (finished) endSession('terminee', elapsedSec(steps, positionRef.current, Date.now()));
+  }, [finished]);
+
   const togglePause = () => {
     triggerLightHaptic();
     setPosition((p) => (isPaused(p) ? resume(p, Date.now()) : pause(p, Date.now())));
@@ -108,18 +122,21 @@ export function PlayerScreen({ title, sessionType, moment, length, onExit }: Pla
       'La séance en cours sera interrompue.',
       [
         { text: 'Continuer', style: 'cancel', onPress: continueSession },
-        { text: 'Arrêter', style: 'destructive', onPress: onExit },
+        {
+          text: 'Arrêter',
+          style: 'destructive',
+          onPress: () => endSession('arretee', elapsedSec(steps, positionRef.current, Date.now())),
+        },
       ],
       { cancelable: true, onDismiss: continueSession }
     );
   };
 
-  // Bouton retour du téléphone : même confirmation que « Arrêter » (ou retour à l'accueil si fini).
+  // Bouton retour du téléphone : même confirmation que « Arrêter ».
   // Passe par une ref pour n'enregistrer l'écouteur qu'une fois, malgré les rafraîchissements.
   const onBackRef = useRef(() => {});
   onBackRef.current = () => {
-    if (isFinished(steps, positionRef.current)) onExit();
-    else requestStop();
+    if (!hasEndedRef.current) requestStop();
   };
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -129,18 +146,8 @@ export function PlayerScreen({ title, sessionType, moment, length, onExit }: Pla
     return () => subscription.remove();
   }, []);
 
-  if (isFinished(steps, position)) {
-    return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top, paddingBottom: insets.bottom + THEME.spacing.m }]}>
-        <View style={styles.finishedContent}>
-          <Text style={styles.finishedTitle}>Séance terminée</Text>
-          <Text style={styles.finishedDetail}>{title}</Text>
-          <Text style={styles.finishedDetail}>{formatDuration(totalDurationSec(steps))}</Text>
-        </View>
-        <BigButton label="ACCUEIL" primary onPress={onExit} />
-      </View>
-    );
-  }
+  // Séance finie : l'écran de fin (App.tsx) prend le relais.
+  if (finished) return <View style={styles.container} />;
 
   const step = steps[position.index];
   const remaining = remainingSec(position, now);
@@ -246,9 +253,6 @@ const styles = StyleSheet.create({
     color: THEME.colors.onAccent,
     opacity: 0.7,
   },
-  centered: {
-    justifyContent: 'center',
-  },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -347,22 +351,5 @@ const styles = StyleSheet.create({
   },
   controlTextPrimary: {
     color: THEME.colors.bg,
-  },
-  finishedContent: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: THEME.spacing.m,
-  },
-  finishedTitle: {
-    color: THEME.colors.accent,
-    fontSize: THEME.fontSize.title,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  finishedDetail: {
-    color: THEME.colors.textPrimary,
-    fontSize: THEME.fontSize.button,
-    fontWeight: '700',
-    textAlign: 'center',
   },
 });

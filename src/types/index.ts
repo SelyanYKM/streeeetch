@@ -62,3 +62,15 @@ export interface FlexibilityTest {
   unit: string;
   betterWhen: 'plus-haut' | 'plus-bas';
 }
+
+export type SessionStatus = 'terminee' | 'arretee';
+
+// Une séance enregistrée dans l'historique.
+export interface SessionRecord {
+  id: number;
+  startedAt: string; // date et heure de début, format ISO
+  sessionType: SessionType;
+  moment: RoutineMoment;
+  durationSec: number; // durée réellement faite (sans les pauses ni les exercices passés)
+  status: SessionStatus;
+}

@@ -6,3 +6,13 @@ export function formatDuration(totalSec: number): string {
   if (sec === 0) return `${min} min`;
   return `${min} min ${String(sec).padStart(2, '0')} s`;
 }
+
+const DAYS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+/** Date ISO → « mar. 28 oct. 2026 · 15:20 », à l'heure du téléphone. */
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  const time = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} · ${time}`;
+}

@@ -59,7 +59,7 @@ export function findSeedErrors(): string[] {
 }
 
 /** Routine correspondant au choix fait à l'écran (pré, ou post courte / longue). */
-function routineMoment(moment: Moment, length: PostLength | null): RoutineMoment {
+export function routineMoment(moment: Moment, length: PostLength | null): RoutineMoment {
   if (moment === 'pre') return 'pre';
   return length === 'longue' ? 'post-longue' : 'post-courte';
 }
