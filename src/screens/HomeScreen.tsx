@@ -8,7 +8,7 @@ const SESSION_TYPES = ['PUSH', 'PULL', 'LEGS'] as const;
 
 // Petit texte en bas de l'écran qui dit quelle version tourne : sert à vérifier
 // qu'une mise à jour envoyée depuis GitHub est bien arrivée sur le téléphone.
-const VERSION_LABEL = `v1.0.0 · étape 1 · ${Updates.updateId ? `maj ${Updates.updateId.slice(0, 8)}` : 'version de base'}`;
+const VERSION_LABEL = `v1.0.0 · étape 1 · test MAJ OK · ${Updates.updateId ? `maj ${Updates.updateId.slice(0, 8)}` : 'version de base'}`;
 
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
