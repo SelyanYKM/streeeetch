@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "streeeetch",
+    "slug": "streeeetch",
+    "owner": "selyanykms-team",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#121212",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "android": {
+      "package": "com.selyanykm.streeeetch",
+      "adaptiveIcon": {
+        "backgroundColor": "#121212",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": []
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-asset",
+      "expo-status-bar",
+      [
+        "expo-audio",
+        {
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ]
+    ]
+  }
+}
