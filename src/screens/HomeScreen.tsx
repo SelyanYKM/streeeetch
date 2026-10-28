@@ -5,11 +5,15 @@ import { SESSION_LABELS } from '../constants/labels';
 import { findSeedErrors } from '../engine/session';
 import { THEME } from '../theme';
 import { SessionType } from '../types';
+import { formatDateTime } from '../utils/format';
 import { ChoiceScreen } from './ChoiceScreen';
 
 // Petit texte en bas de l'écran qui dit quelle version tourne : sert à vérifier
 // qu'une mise à jour envoyée depuis GitHub est bien arrivée sur le téléphone.
-const VERSION_LABEL = `v1.0.0 · étape 6 · ${Updates.updateId ? `maj ${Updates.updateId.slice(0, 8)}` : 'version de base'}`;
+// runtimeVersion = version de app.json (règle « appVersion »).
+const VERSION_LABEL = `v${Updates.runtimeVersion ?? '?'} · ${
+  Updates.createdAt && !Updates.isEmbeddedLaunch ? `mise à jour du ${formatDateTime(Updates.createdAt.toISOString())}` : 'version de base'
+}`;
 
 // Vérifié une fois au chargement : seed.ts ne change pas pendant que l'app tourne.
 const SEED_ERRORS = findSeedErrors();
